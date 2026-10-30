@@ -1,0 +1,25 @@
+{
+  "title": "Example vertical video",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "clips": [
+    {
+      "path": "assets/scene-01.jpg",
+      "duration": 5,
+      "rights_status": "owned",
+      "rights_note": "Original image created by our team"
+    },
+    {
+      "path": "assets/scene-02.mp4",
+      "duration": 7,
+      "rights_status": "licensed",
+      "rights_note": "Licensed under the provider's commercial video license; retain proof separately"
+    }
+  ],
+  "narration_path": "assets/narration.mp3",
+  "music_path": "assets/music.mp3",
+  "subtitles_path": "assets/captions.srt",
+  "burn_subtitles": false,
+  "output_path": "output/example-video.mp4"
+}
