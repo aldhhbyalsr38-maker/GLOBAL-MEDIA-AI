@@ -1,0 +1,103 @@
+{
+  "project_name": "GLOBAL MEDIA AI",
+  "version": "0.1.0",
+  "max_topics": 6,
+  "lookback_hours": 48,
+  "languages": [
+    "en",
+    "ar"
+  ],
+  "request_timeout_seconds": 15,
+  "feeds": [
+    {
+      "name": "BBC World",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "weight": 1.2
+    },
+    {
+      "name": "NASA News",
+      "url": "https://www.nasa.gov/news-release/feed/",
+      "weight": 1.15
+    },
+    {
+      "name": "ScienceDaily",
+      "url": "https://www.sciencedaily.com/rss/all.xml",
+      "weight": 1.1
+    },
+    {
+      "name": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "weight": 1.0
+    },
+    {
+      "name": "The Guardian World",
+      "url": "https://www.theguardian.com/world/rss",
+      "weight": 1.0
+    },
+    {
+      "name": "Hacker News",
+      "url": "https://hnrss.org/frontpage",
+      "weight": 0.9
+    }
+  ],
+  "topic_signals": {
+    "science": [
+      "science",
+      "research",
+      "discovery",
+      "study",
+      "space",
+      "nasa",
+      "scientist",
+      "علم",
+      "اكتشاف",
+      "دراسة",
+      "فضاء"
+    ],
+    "technology": [
+      "ai",
+      "artificial intelligence",
+      "robot",
+      "chip",
+      "technology",
+      "cyber",
+      "ذكاء اصطناعي",
+      "روبوت",
+      "تقنية"
+    ],
+    "world": [
+      "world",
+      "global",
+      "climate",
+      "energy",
+      "economy",
+      "international",
+      "عالمي",
+      "مناخ",
+      "طاقة",
+      "اقتصاد"
+    ],
+    "human_story": [
+      "people",
+      "community",
+      "rescue",
+      "inspiring",
+      "human",
+      "إنسان",
+      "إنقاذ",
+      "قصة"
+    ],
+    "curiosity": [
+      "mystery",
+      "unusual",
+      "rare",
+      "strange",
+      "ancient",
+      "mysterious",
+      "غريب",
+      "نادر",
+      "لغز",
+      "قديم"
+    ]
+  }
+}
