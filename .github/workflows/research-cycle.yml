@@ -37,11 +37,16 @@ jobs:
       - name: Run research cycle
         run: python -m global_media_ai --config config/settings.json --output output
 
-      - name: Upload editorial plan
+      - name: Create production packs
+        run: python -m global_media_ai.production_cli --input output/editorial_plan.json --output production
+
+      - name: Upload editorial and production packs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: editorial-plan-${{ github.run_number }}
-          path: output/
+          name: editorial-and-production-${{ github.run_number }}
+          path: |
+            output/
+            production/
           if-no-files-found: warn
           retention-days: 14

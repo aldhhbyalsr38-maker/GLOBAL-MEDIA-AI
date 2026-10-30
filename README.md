@@ -1,14 +1,16 @@
-# GLOBAL MEDIA AI — V0.1
+# GLOBAL MEDIA AI — V0.3
 
 An adaptive, bilingual content-planning engine designed to run on GitHub Actions.
-This first release discovers current topics from public RSS feeds, scores them,
-selects six candidates, and creates English/Arabic editorial briefs.
+The system discovers current topics from public RSS feeds, deduplicates related stories,
+selects candidates, and creates human-reviewable bilingual production packs.
 
 > V0.1 is a research-and-planning release. It does **not** generate finished
 > cinematic video, upload to YouTube, or publish to TikTok yet. Those integrations
 > require provider credentials, platform authorization, and production-quality QA.
 
 ## What works now
+- V0.3 creates English script drafts, Arabic localization templates, vertical-video storyboards, and quality-gate checklists.
+- Production packs are explicitly blocked pending verification when source evidence is insufficient.
 - Runs on Python 3.12.
 - Scheduled twice daily by GitHub Actions (UTC).
 - Fetches public RSS feeds with timeouts and per-feed error handling.
@@ -50,16 +52,16 @@ No API key is required for V0.1.
   GitHub Actions secrets only when the relevant integration is implemented.
 
 ## Roadmap
-- V0.2: LLM-assisted fact-checking and original bilingual scripts.
-- V0.3: licensed-asset selection, voice generation, subtitles, FFmpeg assembly.
-- V0.4: YouTube upload integration with private/unlisted test mode.
-- V0.5: TikTok Content Posting API after app approval.
-- V0.6: analytics feedback loop and adaptive topic weighting.
+- V0.4: licensed-asset intake, real translation/review, voice generation, subtitles, and FFmpeg rendering.
+- V0.5: YouTube upload integration with private/unlisted test mode.
+- V0.6: TikTok Content Posting API after app approval.
+- V0.7: analytics feedback loop and adaptive topic weighting.
 
 ## Local run
 ```bash
 python -m pip install -r requirements.txt
 python -m global_media_ai --config config/settings.json --output output
+python -m global_media_ai.production_cli --input output/editorial_plan.json --output production
 ```
 
 
