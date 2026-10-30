@@ -1,6 +1,6 @@
 {
   "project_name": "GLOBAL MEDIA AI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "max_topics": 6,
   "lookback_hours": 48,
   "languages": [
@@ -99,5 +99,6 @@
       "لغز",
       "قديم"
     ]
-  }
+  },
+  "near_duplicate_threshold": 0.62
 }

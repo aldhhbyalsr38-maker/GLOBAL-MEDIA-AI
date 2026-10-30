@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime, timezone, timedelta
-from global_media_ai.research import clean_text, classify_topic, score_story, make_bilingual_brief, write_outputs
+from global_media_ai.research import clean_text, classify_topic, score_story, make_bilingual_brief, write_outputs, normalize_url, deduplicate_stories
 from pathlib import Path
 import tempfile
 
@@ -28,6 +28,20 @@ class ResearchTests(unittest.TestCase):
         self.assertIn("english", brief)
         self.assertIn("arabic", brief)
         self.assertEqual(brief["source_url"], story["url"])
+
+
+    def test_normalize_url_removes_tracking(self):
+        self.assertEqual(normalize_url("https://EXAMPLE.com/story/?utm_source=x&x=1#top"), "https://example.com/story?x=1")
+
+    def test_near_duplicate_headlines_merge_sources(self):
+        stories = [
+            {"title": "Major scientific discovery announced by researchers", "url": "https://a.test/1", "source": "A", "summary": "Short", "published_at": "2026-01-02"},
+            {"title": "Researchers announce major scientific discovery", "url": "https://b.test/2", "source": "B", "summary": "A much longer detailed summary about the same scientific discovery.", "published_at": "2026-01-01"},
+        ]
+        merged = deduplicate_stories(stories, 0.5)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(len(merged[0]["corroborating_sources"]), 2)
+        self.assertIn("much longer", merged[0]["summary"])
 
     def test_writes_reports(self):
         with tempfile.TemporaryDirectory() as d:

@@ -6,6 +6,8 @@ import json
 import re
 import time
 from datetime import datetime, timezone, timedelta
+from difflib import SequenceMatcher
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from pathlib import Path
 from typing import Any
 from email.utils import parsedate_to_datetime
@@ -13,7 +15,7 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 import xml.etree.ElementTree as ET
 
-USER_AGENT = "GLOBAL-MEDIA-AI/0.1 (+https://github.com/)"
+USER_AGENT = "GLOBAL-MEDIA-AI/0.2 (+https://github.com/)"
 
 
 def clean_text(value: str) -> str:
@@ -46,26 +48,28 @@ def fetch_feed(feed: dict, timeout: int) -> list[dict]:
     req = Request(feed["url"], headers={"User-Agent": USER_AGENT})
     with urlopen(req, timeout=timeout) as response:
         payload = response.read(2_000_000)
-    # Standard-library parser supports common RSS 2.0 and Atom feeds; no runtime
-    # dependency is needed, which keeps the GitHub Actions build lightweight.
-    root = ET.fromstring(payload)
+    # feedparser is tolerant of malformed publisher feeds; retain an XML fallback.
     entries = []
-    for item in root.findall(".//item"):
-        entries.append({
-            "title": item.findtext("title", ""),
-            "link": item.findtext("link", ""),
-            "summary": item.findtext("description", ""),
-            "published": item.findtext("pubDate", "")
-        })
-    ns = {"atom": "http://www.w3.org/2005/Atom"}
-    for item in root.findall(".//atom:entry", ns):
-        link_el = item.find("atom:link", ns)
-        entries.append({
-            "title": item.findtext("atom:title", "", ns),
-            "link": (link_el.get("href", "") if link_el is not None else ""),
-            "summary": item.findtext("atom:summary", "", ns) or item.findtext("atom:content", "", ns),
-            "published": item.findtext("atom:published", "", ns) or item.findtext("atom:updated", "", ns)
-        })
+    try:
+        import feedparser
+        parsed = feedparser.parse(payload)
+        for item in parsed.entries:
+            entries.append({"title": item.get("title", ""), "link": item.get("link", ""),
+                            "summary": item.get("summary", item.get("description", "")),
+                            "published": item.get("published", item.get("updated", "")),
+                            "published_parsed": item.get("published_parsed") or item.get("updated_parsed")})
+    except ImportError:
+        root = ET.fromstring(payload)
+        for item in root.findall(".//item"):
+            entries.append({"title": item.findtext("title", ""), "link": item.findtext("link", ""),
+                            "summary": item.findtext("description", ""), "published": item.findtext("pubDate", "")})
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        for item in root.findall(".//atom:entry", ns):
+            link_el = item.find("atom:link", ns)
+            entries.append({"title": item.findtext("atom:title", "", ns),
+                            "link": link_el.get("href", "") if link_el is not None else "",
+                            "summary": item.findtext("atom:summary", "", ns) or item.findtext("atom:content", "", ns),
+                            "published": item.findtext("atom:published", "", ns) or item.findtext("atom:updated", "", ns)})
     results = []
     for e in entries:
         get = e.get if isinstance(e, dict) else lambda k, default="": getattr(e, k, default)
@@ -125,6 +129,9 @@ def make_bilingual_brief(story: dict, rank: int) -> dict:
         "score": story["score"],
         "categories": story["categories"],
         "editorial_status": "research_required",
+        "corroborating_sources": story.get("corroborating_sources", []),
+        "quality_flags": editorial_quality_flags(story),
+        "arabic_status": "translation_required",
         "fact_check_checklist": [
             "Open the original source and verify the complete context.",
             "Find at least one independent, reputable corroborating source.",
@@ -159,6 +166,51 @@ def make_bilingual_brief(story: dict, rank: int) -> dict:
     }
 
 
+def normalize_url(url: str) -> str:
+    parts = urlsplit((url or "").strip())
+    tracking = {"fbclid", "gclid", "mc_cid", "mc_eid"}
+    query = urlencode([(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                       if not k.lower().startswith("utm_") and k.lower() not in tracking])
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), query, ""))
+
+
+def title_similarity(a: str, b: str) -> float:
+    norm = lambda x: re.sub(r"[^\w ]+", " ", x.casefold()).strip()
+    aa, bb = norm(a), norm(b)
+    seq = SequenceMatcher(None, aa, bb).ratio()
+    ta, tb = set(aa.split()), set(bb.split())
+    return 0.6 * seq + 0.4 * len(ta & tb) / max(1, len(ta | tb))
+
+
+def deduplicate_stories(stories: list[dict], threshold: float = 0.62) -> list[dict]:
+    """Group duplicate URLs/headlines and preserve all discovered source links."""
+    groups = []
+    for story in sorted(stories, key=lambda x: x.get("published_at", ""), reverse=True):
+        canonical = normalize_url(story.get("url", ""))
+        match = next((g for g in groups if canonical == g.get("canonical_url") or
+                      title_similarity(story.get("title", ""), g.get("title", "")) >= threshold), None)
+        if match is None:
+            item = dict(story)
+            item["canonical_url"] = canonical
+            item["corroborating_sources"] = [{"source": story.get("source"), "url": story.get("url")}]
+            groups.append(item)
+        else:
+            if story.get("source") not in [x.get("source") for x in match["corroborating_sources"]]:
+                match["corroborating_sources"].append({"source": story.get("source"), "url": story.get("url")})
+            if len(story.get("summary", "")) > len(match.get("summary", "")):
+                match["summary"] = story["summary"]
+    return groups
+
+
+def editorial_quality_flags(story: dict) -> list[str]:
+    flags = []
+    if len(story.get("corroborating_sources", [])) < 2:
+        flags.append("single_source_only")
+    if len(story.get("summary", "")) < 100:
+        flags.append("thin_source_summary")
+    return flags
+
+
 def build_plan(config: dict, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     lookback = int(config.get("lookback_hours", 48))
@@ -169,12 +221,7 @@ def build_plan(config: dict, now: datetime | None = None) -> dict:
             all_stories.extend(fetch_feed(feed, timeout))
         except (HTTPError, URLError, TimeoutError, OSError, ET.ParseError, Exception) as exc:
             feed_errors.append({"source": feed.get("name", "unknown"), "error": str(exc)[:300]})
-    seen, unique = set(), []
-    for story in all_stories:
-        key = hashlib.sha256(story["url"].split("?")[0].encode()).hexdigest()
-        if key not in seen:
-            seen.add(key)
-            unique.append(story)
+    unique = deduplicate_stories(all_stories, float(config.get("near_duplicate_threshold", 0.78)))
     cutoff = now - timedelta(hours=lookback)
     fresh = []
     for story in unique:
@@ -188,7 +235,7 @@ def build_plan(config: dict, now: datetime | None = None) -> dict:
     topics = [make_bilingual_brief(item, i + 1) for i, item in enumerate(selected)]
     return {
         "project": config.get("project_name", "GLOBAL MEDIA AI"),
-        "version": config.get("version", "0.1.0"),
+        "version": config.get("version", "0.2.0"),
         "generated_at": now.isoformat(),
         "lookback_hours": lookback,
         "status": "research_ready" if topics else "no_recent_topics",
@@ -199,7 +246,9 @@ def build_plan(config: dict, now: datetime | None = None) -> dict:
             "RSS coverage is incomplete and varies by publisher.",
             "Ranking is a transparent heuristic, not a prediction of virality or revenue.",
             "Editorial briefs are drafts; fact-checking and rights review are mandatory.",
-            "Arabic fields are editorial prompts, not a completed translation."
+            "Arabic fields are editorial prompts, not a completed translation.",
+            "Near-duplicate grouping is heuristic; human review is still required.",
+            "Related sources are leads for verification, not proof of independent confirmation."
         ]
     }
 
@@ -226,6 +275,8 @@ def write_outputs(plan: dict, output_dir: Path) -> tuple[Path, Path]:
             f"- Source: [{item['source']}]({item['source_url']})",
             f"- Score: {item['score']} (heuristic, not a virality forecast)",
             f"- Categories: {', '.join(item['categories'])}",
+            f"- Quality flags: {', '.join(item.get('quality_flags', [])) or 'none detected by basic checks'}",
+            f"- Related sources found: {len(item.get('corroborating_sources', []))}",
             "",
             "### English",
             f"**Working title:** {item['english']['working_title']}",

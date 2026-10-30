@@ -61,3 +61,12 @@ No API key is required for V0.1.
 python -m pip install -r requirements.txt
 python -m global_media_ai --config config/settings.json --output output
 ```
+
+
+## V0.2 improvements
+
+- More tolerant RSS/Atom parsing through `feedparser` for malformed publisher feeds.
+- Near-duplicate headline grouping across publishers, retaining related source URLs.
+- Basic editorial quality flags for single-source stories and thin summaries.
+- Arabic copy is explicitly marked as requiring a real translation/editorial pass.
+- These checks do not verify facts or predict views/revenue; human review remains mandatory.
